@@ -1,8 +1,8 @@
 #![deny(clippy::all)]
 
-use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::io::{self, BufRead};
 
 #[derive(Debug, Clone, Copy)]
 pub enum MaskError {
@@ -73,15 +73,23 @@ fn compute_mask_cost(mask_size: u64, occurrences_count: u64) -> f64 {
     (occurrences_count as f64) / (mask_size as f64)
 }
 
-fn generate_masks_from_list(wordlist: &[&str]) -> HashMap<String, u64> {
+fn generate_masks_from_bufreader<R>(line_reader: &mut R) -> io::Result<HashMap<String, u64>>
+where
+    R: BufRead,
+{
     let mut masks_counts = HashMap::new();
 
-    for &word in wordlist {
-        let mask = generate_mask(word).unwrap();
+    for word in line_reader.lines() {
+        let word = match word {
+            Ok(word) => word,
+            Err(error) => return Err(error),
+        };
+
+        let mask = generate_mask(&word).unwrap();
         *masks_counts.entry(mask).or_insert(0) += 1;
     }
 
-    masks_counts
+    Ok(masks_counts)
 }
 
 fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec<ComputedMask> {
@@ -107,8 +115,12 @@ fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec<Com
 
 #[cfg(test)]
 mod lib_tests {
+    use std::io::Cursor;
+    use std::time::Instant;
+
     use super::{
-        compute_mask_cost, compute_mask_size, generate_mask, generate_masks_from_list, sort_masks,
+        compute_mask_cost, compute_mask_size, generate_mask, generate_masks_from_bufreader,
+        sort_masks,
     };
 
     #[test]
@@ -135,16 +147,23 @@ mod lib_tests {
     }
 
     #[test]
-    fn masks_from_list() {
-        let wordlist = vec!["Hello", "Friend", "Password", "P@$$w0rd"];
-        let mask_map = generate_masks_from_list(&wordlist);
+    fn masks_from_iterator() {
+        let mut wordlist = Cursor::new(b"Hello\nFriend\nPassword\nP@$$w0rd");
+        generate_masks_from_bufreader(&mut wordlist).unwrap();
     }
 
     #[test]
     fn sort_masks_list() {
-        let wordlist = vec!["Hello", "Hello", "Friend", "Password", "P@$$w0rd"];
-        let mask_map = generate_masks_from_list(&wordlist);
+        let mut wordlist = Cursor::new(b"Hello\nFriend\nPassword\nP@$$w0rd");
+        let start_time = Instant::now();
+        let mask_map = generate_masks_from_bufreader(&mut wordlist).unwrap();
+        let mask_generation_duration = start_time.elapsed();
+        let start_mask_sort = Instant::now();
         let mask_list = sort_masks(&mask_map, u64::MAX);
+        let mask_sort_duration = start_mask_sort.elapsed();
+
+        println!("Generation duration: {:?}", mask_generation_duration);
+        println!("Sorting duration: {:?}", mask_sort_duration);
 
         assert_eq!(mask_list[0].mask, "ullll");
     }

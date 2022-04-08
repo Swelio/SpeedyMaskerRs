@@ -4,6 +4,7 @@ mod lib;
 
 use std::fs::File;
 use std::io;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use crate::lib::ComputedMask;
@@ -13,6 +14,9 @@ where
     P: AsRef<Path>,
 {
     let file = File::open(path)?;
+    let file_reader = BufReader::new(file);
+
+
     todo!()
 }
 
