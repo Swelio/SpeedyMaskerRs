@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::io::{self, BufRead};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy)]
 pub enum MaskError {
@@ -25,6 +27,12 @@ pub struct ComputedMask {
     pub size: u64,
     pub count: u64,
     pub cost: f64,
+}
+
+impl Display for ComputedMask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.mask)
+    }
 }
 
 fn generate_mask(word: &str) -> Result<String, MaskError> {
@@ -73,7 +81,7 @@ fn compute_mask_cost(mask_size: u64, occurrences_count: u64) -> f64 {
     (occurrences_count as f64) / (mask_size as f64)
 }
 
-fn generate_masks_from_bufreader<R>(line_reader: &mut R) -> io::Result<HashMap<String, u64>>
+pub fn generate_masks_from_bufreader<R>(line_reader: &mut R) -> io::Result<HashMap<String, u64>>
 where
     R: BufRead,
 {
@@ -92,7 +100,7 @@ where
     Ok(masks_counts)
 }
 
-fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec<ComputedMask> {
+pub fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec<ComputedMask> {
     let mut sorted_masks = Vec::with_capacity(masks_counts.len());
 
     for (mask, &mask_count) in masks_counts {
@@ -111,6 +119,17 @@ fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec<Com
 
     sorted_masks.sort_by(|mask_0, mask_1| mask_1.cost.partial_cmp(&mask_0.cost).unwrap());
     sorted_masks
+}
+
+pub fn parse_file<P>(path: P, maximum_size: u64) -> io::Result<Vec<ComputedMask>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(path)?;
+    let mut file_reader = BufReader::new(file);
+    let mask_map = generate_masks_from_bufreader(&mut file_reader)?;
+
+    Ok(sort_masks(&mask_map, maximum_size))
 }
 
 #[cfg(test)]
