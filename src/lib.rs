@@ -93,7 +93,10 @@ where
             Err(error) => return Err(error),
         };
 
-        let mask = generate_mask(&word).unwrap();
+        let mask = match generate_mask(&word) {
+            Ok(mask) => mask,
+            Err(_) => continue,
+        };
         *masks_counts.entry(mask).or_insert(0) += 1;
     }
 
@@ -121,15 +124,26 @@ pub fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec
     sorted_masks
 }
 
-pub fn parse_file<P>(path: P, maximum_size: u64) -> io::Result<Vec<ComputedMask>>
+pub fn parse_file<P>(path: P, maximum_size: u64) -> io::Result<(Vec<ComputedMask>, u64)>
 where
     P: AsRef<Path>,
 {
     let file = File::open(path)?;
     let mut file_reader = BufReader::new(file);
     let mask_map = generate_masks_from_bufreader(&mut file_reader)?;
+    let mut used_space = 0;
+    let sorted_masks = sort_masks(&mask_map, maximum_size)
+        .into_iter()
+        .filter(|mask| {
+            if used_space > maximum_size - mask.size {
+                return false;
+            }
+            used_space += mask.size;
+            true
+        })
+        .collect();
 
-    Ok(sort_masks(&mask_map, maximum_size))
+    Ok((sorted_masks, used_space))
 }
 
 #[cfg(test)]
