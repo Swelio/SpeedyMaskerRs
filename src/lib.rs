@@ -97,7 +97,10 @@ where
             Ok(mask) => mask,
             Err(_) => continue,
         };
-        *masks_counts.entry(mask).or_insert(0) += 1;
+
+        if !mask.is_empty() {
+            *masks_counts.entry(mask).or_insert(0) += 1;
+        }
     }
 
     Ok(masks_counts)

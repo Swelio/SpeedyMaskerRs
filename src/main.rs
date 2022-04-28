@@ -3,7 +3,7 @@
 mod lib;
 
 use clap::Parser;
-use std::time::Instant;
+use std::io::Write;
 
 use crate::lib::parse_file;
 
@@ -20,14 +20,12 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let start_time = Instant::now();
-    let (sorted_masks, used_space) = parse_file(cli.wordlist, cli.space_limit).unwrap();
-    let duration = start_time.elapsed();
+    let (sorted_masks, _) = parse_file(cli.wordlist, cli.space_limit).unwrap();
+    let mut stdout = std::io::stdout();
 
-    println!(
-        "Got {} masks over {} space into {:?}.",
-        sorted_masks.len(),
-        used_space,
-        duration
-    );
+    for mask in sorted_masks {
+        if writeln!(&mut stdout, "{}", mask).is_err() {
+            return;
+        }
+    }
 }
