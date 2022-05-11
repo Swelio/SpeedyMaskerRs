@@ -6,7 +6,10 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 
+const SPECIAL_CHARSET: &str = "! \"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum MaskError {
     InvalidCharacter(char),
 }
@@ -24,8 +27,8 @@ impl Display for MaskError {
 #[derive(Debug, Clone)]
 pub struct ComputedMask {
     pub mask: String,
-    pub size: u64,
-    pub count: u64,
+    pub size: usize,
+    pub count: usize,
     pub cost: f64,
 }
 
@@ -45,7 +48,7 @@ fn generate_mask(word: &str) -> Result<String, MaskError> {
             mask.push('u');
         } else if char.is_ascii_digit() {
             mask.push('d');
-        } else if "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".contains(char) {
+        } else if SPECIAL_CHARSET.contains(char) {
             mask.push('s');
         } else {
             return Err(MaskError::InvalidCharacter(char));
@@ -55,7 +58,7 @@ fn generate_mask(word: &str) -> Result<String, MaskError> {
     Ok(mask)
 }
 
-fn compute_mask_size(mask: &str, maximum_size: u64) -> Option<u64> {
+fn compute_mask_size(mask: &str, maximum_size: usize) -> Option<usize> {
     let mut result = 1;
 
     for char in mask.chars() {
@@ -63,25 +66,25 @@ fn compute_mask_size(mask: &str, maximum_size: u64) -> Option<u64> {
             'l' => 26,
             'u' => 26,
             'd' => 10,
-            's' => 32,
+            's' => SPECIAL_CHARSET.len(),
             _ => panic!("unknown mask char '{}'", char),
         };
 
         if (maximum_size / multiplier) < result {
             return None;
-        } else {
-            result *= multiplier;
         }
+
+        result *= multiplier;
     }
 
     Some(result)
 }
 
-fn compute_mask_cost(mask_size: u64, occurrences_count: u64) -> f64 {
+fn compute_mask_cost(mask_size: usize, occurrences_count: usize) -> f64 {
     (occurrences_count as f64) / (mask_size as f64)
 }
 
-pub fn generate_masks_from_bufreader<R>(line_reader: &mut R) -> io::Result<HashMap<String, u64>>
+pub fn generate_masks_from_bufreader<R>(line_reader: &mut R) -> io::Result<HashMap<String, usize>>
 where
     R: BufRead,
 {
@@ -106,7 +109,7 @@ where
     Ok(masks_counts)
 }
 
-pub fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec<ComputedMask> {
+pub fn sort_masks(masks_counts: &HashMap<String, usize>, maximum_size: usize) -> Vec<ComputedMask> {
     let mut sorted_masks = Vec::with_capacity(masks_counts.len());
 
     for (mask, &mask_count) in masks_counts {
@@ -127,7 +130,7 @@ pub fn sort_masks(masks_counts: &HashMap<String, u64>, maximum_size: u64) -> Vec
     sorted_masks
 }
 
-pub fn parse_file<P>(path: P, maximum_size: u64) -> io::Result<(Vec<ComputedMask>, u64)>
+pub fn parse_file<P>(path: P, maximum_size: usize) -> io::Result<(Vec<ComputedMask>, usize)>
 where
     P: AsRef<Path>,
 {
@@ -138,11 +141,11 @@ where
     let sorted_masks = sort_masks(&mask_map, maximum_size)
         .into_iter()
         .filter(|mask| {
-            if used_space > maximum_size - mask.size {
-                return false;
+            if mask.size <= maximum_size - used_space {
+                used_space += mask.size;
+                return true;
             }
-            used_space += mask.size;
-            true
+            false
         })
         .collect();
 
@@ -169,14 +172,14 @@ mod lib_tests {
     #[test]
     fn mask_size_computation() {
         let mask = "ullllulllll";
-        let mask_size = compute_mask_size(mask, u64::MAX).unwrap();
+        let mask_size = compute_mask_size(mask, usize::MAX).unwrap();
         assert_eq!(mask_size, 3670344486987776);
     }
 
     #[test]
     fn mask_cost() {
         let mask = "ullllulllll";
-        let mask_size = compute_mask_size(mask, u64::MAX).unwrap();
+        let mask_size = compute_mask_size(mask, usize::MAX).unwrap();
         let mask_occurrences = 1000;
         let mask_cost = compute_mask_cost(mask_size, mask_occurrences);
         assert_eq!(mask_cost, 2.7245398995795416e-13);
@@ -195,7 +198,7 @@ mod lib_tests {
         let mask_map = generate_masks_from_bufreader(&mut wordlist).unwrap();
         let mask_generation_duration = start_time.elapsed();
         let start_mask_sort = Instant::now();
-        let mask_list = sort_masks(&mask_map, u64::MAX);
+        let mask_list = sort_masks(&mask_map, usize::MAX);
         let mask_sort_duration = start_mask_sort.elapsed();
 
         println!("Generation duration: {:?}", mask_generation_duration);

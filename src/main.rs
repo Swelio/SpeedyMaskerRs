@@ -14,8 +14,8 @@ struct Cli {
     /// wordlist to parse
     wordlist: String,
 
-    #[clap(short = 'l', default_value_t = u64::MAX)]
-    space_limit: u64,
+    #[clap(short = 'l', default_value_t = usize::MAX)]
+    space_limit: usize,
 }
 
 fn main() {
